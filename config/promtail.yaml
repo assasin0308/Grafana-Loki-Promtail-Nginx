@@ -1,0 +1,45 @@
+# https://grafana.com/docs/loki/latest/clients/promtail/configuration/
+# https://docs.docker.com/engine/api/v1.41/#operation/ContainerList
+server:
+    http_listen_port: 9080
+    grpc_listen_port: 0
+
+positions:
+    filename: /tmp/positions.yaml
+
+clients:
+    -   url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+    -   job_name: flog_scrape
+        docker_sd_configs:
+            -   host: unix:///var/run/docker.sock
+                refresh_interval: 5s
+                filters:
+                    -   name: label
+                        values: [ "logging=promtail" ]
+        relabel_configs:
+            -   source_labels: [ '__meta_docker_container_name' ]
+                regex: '/(.*)'
+                target_label: 'container'
+            -   source_labels: [ '__meta_docker_container_log_stream' ]
+                target_label: 'logstream'
+            -   source_labels: [ '__meta_docker_container_label_logging_jobname' ]
+                target_label: 'job'
+        pipeline_stages:
+            -   match:
+                    selector: '{job="nginx_container_logs"}'
+                    stages:
+                        -   regex:
+                                expression: '^(?P<remote_addr>[\w\.]+) - (?P<remote_user>[^ ]*) \[(?P<time_local>.*)\] "(?P<method>[^ ]*) (?P<request>[^ ]*) (?P<protocol>[^ ]*)" (?P<status>[\d]+) (?P<body_bytes_sent>[\d]+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"?'
+                        -   labels:
+                                remote_addr:
+                                remote_user:
+                                time_local:
+                                method:
+                                request:
+                                protocol:
+                                status:
+                                body_bytes_sent:
+                                http_referer:
+                                http_user_agent:
